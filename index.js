@@ -26,6 +26,7 @@ class App {
     this.canvas = document.getElementById('cmain');
     this.ctx = this.canvas.getContext('2d');
     this.canvas.onmousemove = (e) => this.onmousemove(e);
+    this.canvas.onclick = (e) => this.onclick(e);
 
     this.objects = [];
     
@@ -41,16 +42,24 @@ class App {
     ];
 
     this.localUpgrades = [
+      {display: "Hover speed", levelVar: "hoverspeedlvl", stateVar: "hoverspeed", upgradeType: '+', upgradeVal: 1, maxVal: 10, costType: '*', costVal: 2, cost0: 10},
+      {display: "Hover size", levelVar: "hoversizelvl", stateVar: "hoversize", upgradeType: '+', upgradeVal: 5, maxVal: 50, costType: '*', costVal: 2, cost0: 10}
     ];
 
-    this.initUpgradesUI('globalUpgrades', this.globalUpgrades, this.state);
-
+    this.initUpgradesUI('globalUpgrades', this.globalUpgrades, this.state, 'Global Upgrades');
+    this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[0], 'A Upgrades (click spawner to switch)');
+    
+    this.t = 0;
     setInterval(() => this.tick(), 1000 / 30);
   }
 
-  initUpgradesUI(containerID, upgradesList, state) {
+  initUpgradesUI(containerID, upgradesList, state, label) {
     const container = document.getElementById(containerID);
     container.innerHTML = '';
+
+    const elabel = document.createElement('h2');
+    elabel.innerText = label;
+    container.appendChild(elabel);
 
     const table = document.createElement('table');
     const hr = document.createElement('tr');
@@ -69,7 +78,7 @@ class App {
       tr.appendChild(tdd);
 
       const tdc = document.createElement('td');
-      tdc.innerText = this.state[u.stateVar];
+      tdc.innerText = state[u.stateVar];
       tr.appendChild(tdc);
 
       const tdn = document.createElement('td');
@@ -85,7 +94,7 @@ class App {
       buttonBuy.innerText = 'Buy';
       buttonBuy.onclick = () => {
         this.buyUpgrade(u, state);
-        this.initUpgradesUI(containerID, upgradesList, state);
+        this.initUpgradesUI(containerID, upgradesList, state, label);
       };
       tdb.appendChild(buttonBuy);
       tr.appendChild(tdb);
@@ -143,7 +152,11 @@ class App {
       bsize: 20,
       bsizelvl: 0,
       autogen: 0.95,
-      autogenlvl: 0
+      autogenlvl: 0,
+      spawners: [
+        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5},
+        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5}
+      ]
     };
 
     if (rawState !== null) {
@@ -162,8 +175,8 @@ class App {
   initGame() {
     //create spawners
     this.spawners = [];
-    //const genCount = this.state.prestigeCount + 2;
-    const genCount = 6;
+    const genCount = this.state.prestigeCount + 2;
+    //const genCount = 6;
     const width = this.canvas.width;
     const height = this.canvas.height;
     const genPosRadius = 300;
@@ -180,7 +193,9 @@ class App {
         z: 0,
         spawnRadius: 50,
         inCount: 0,
-        alive: true
+        alive: true,
+        collectorAngle: 0,
+        collectorRadius: 40,
       };
       this.objects.push(spawner);
       this.spawners.push(spawner);
@@ -192,6 +207,7 @@ class App {
   }
   
   tick() {
+    this.t += 1/30;
     this.update();
     this.draw();
   }
@@ -240,6 +256,16 @@ class App {
               alive: true
             });
           }
+
+          //hover speed of 1 should require 1 minute to revolve
+          o.collectorAngle += this.state.spawners[o.id].hoverspeed * 2 * Math.PI / (60 * 1000 / 30);
+          const minRadius = 20 + this.state.spawners[o.id].hoversize;
+          const maxRadius = 75 - this.state.spawners[o.id].hoversize;
+          o.collectorRadius = (maxRadius + minRadius) / 2 + (maxRadius - minRadius) * 0.5 * Math.sin(this.t);
+          o.collectorX = o.x + o.collectorRadius * Math.cos(o.collectorAngle);
+          o.collectorY = o.y + o.collectorRadius * Math.sin(o.collectorAngle);
+          o.collectorSize = this.state.spawners[o.id].hoversize;
+
           break;
         }
         case 'coin': {
@@ -247,7 +273,13 @@ class App {
           const mdy = o.y - this.mouse.y;
           const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
           const collectRadius = this.state.bsize + 5;
-          if (mdist < collectRadius) {
+          const coinSpawner = this.spawners[o.srcId];
+          const cdx = o.x - coinSpawner.collectorX;
+          const cdy = o.y - coinSpawner.collectorY;
+          const cdist = Math.sqrt(cdx * cdx + cdy * cdy);
+          const collectRadiusC = coinSpawner.collectorSize + 5;
+
+          if (mdist < collectRadius || cdist < collectRadiusC) {
             o.targetx = this.spawners[o.nextId].x;
             o.targety = this.spawners[o.nextId].y;
           }
@@ -307,6 +339,17 @@ class App {
           ctx.fill();
           ctx.fillStyle = 'white';
           ctx.fillText(o.label, o.x, o.y);
+
+          const spawnerState = this.state.spawners[o.id];
+          const size = spawnerState.hoversize;
+
+          const cx = o.collectorX;
+          const cy = o.collectorY;
+          ctx.fillStyle = 'orange';
+          ctx.beginPath();
+          ctx.arc(cx, cy, size, 0, Math.PI * 2);
+          ctx.fill();
+
           break;
         }
         case 'coin': {
@@ -334,6 +377,17 @@ class App {
     const rect = this.canvas.getBoundingClientRect();
     this.mouse.x = e.clientX - rect.left - this.canvas.width / 2;
     this.mouse.y = e.clientY - rect.top - this.canvas.height / 2;    
+  }
+
+  onclick(e) {
+    this.spawners.forEach( s => {
+      const dx = this.mouse.x - s.x;
+      const dy = this.mouse.y - s.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < 400) {
+        this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[s.id], `${s.label} Upgrades (click spawner to switch)`);
+      }
+    });
   }
 }
 
