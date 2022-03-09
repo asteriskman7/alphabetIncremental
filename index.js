@@ -1,24 +1,13 @@
 "use strict";
 
 /*
-  hover over a generator to increase speed
-  collecting coins sends them to the next generator
-  increase auto generation speed
-  increase hover generation speed
-  add auto collector
-  increase auto collector size
-  increase auto collector speed
-  increase player size
   decrease generator requirement for # of lower coins to gen new
   when there are too many coins, start increasing their value instead
     of making new
-  ultimately, the generators make a loop
-  prestige to increase the # of generators in the loop but start with
-    lower coin requirement
-  include 2x time accumulated while away
   make player image a basket or something similar
-  when highest level coin comes back to the start, it produces prestige currency. 
-    need certain amound of prestige currency to advance levels or multiply income points
+  get images for all 26 items
+  have an winning screen or message
+  get favicon
 */
 
 class App {
@@ -31,6 +20,7 @@ class App {
     this.objects = [];
     
     this.loadState();
+    this.lastPrestige = this.state.prestigelvl;
     this.initGame();
 
     
@@ -38,7 +28,8 @@ class App {
 
     this.globalUpgrades = [
       {display: "Basket size", levelVar: "bsizelvl", stateVar: "bsize", upgradeType: '*', upgradeVal: 1.5, maxVal: 100, costType: '*', costVal: 2, cost0: 10},
-      {display: "Auto generation", levelVar: "autogenlvl", stateVar: "autogen", upgradeType: '*', upgradeVal: 0.95, maxVal: 0, costType: '*', costVal: 2, cost0: 10}
+      {display: "Auto generation", levelVar: "autogenlvl", stateVar: "autogen", upgradeType: '*', upgradeVal: 0.75, maxVal: 0, costType: '*', costVal: 2, cost0: 10},
+      {display: "Prestige", currency: "prestigePoints", levelVar: "prestigelvl", stateVar: "prestigeCount", upgradeType: '+', upgradeVal: 1, maxVal: 26, costType: '*', costVal: 1, cost0: 10}
     ];
 
     this.localUpgrades = [
@@ -51,6 +42,7 @@ class App {
     
     this.t = 0;
     setInterval(() => this.tick(), 1000 / 30);
+    setInterval(() => this.saveState(), 2000);
   }
 
   initUpgradesUI(containerID, upgradesList, state, label) {
@@ -86,7 +78,7 @@ class App {
       tr.appendChild(tdn);
 
       const tdcost = document.createElement('td');
-      tdcost.innerText = this.getNextUpgradeCost(u, state);
+      tdcost.innerText = (u.currency === 'prestigePoints' ? 'P' : '$') + this.getNextUpgradeCost(u, state);
       tr.appendChild(tdcost);
 
       const tdb = document.createElement('td');
@@ -107,8 +99,9 @@ class App {
 
   buyUpgrade(upgrade, state) {
     const upgradeCost = this.getNextUpgradeCost(upgrade, state);
-    if (this.state.score >= upgradeCost) {
-      this.state.score -= upgradeCost;
+    const upgradeCurrency = upgrade.currency ?? 'score';
+    if (this.state[upgradeCurrency] >= upgradeCost) {
+      this.state[upgradeCurrency] -= upgradeCost;
       state[upgrade.stateVar] = this.getNextUpgradeVal(upgrade, state);
       state[upgrade.levelVar]++;
     }
@@ -147,15 +140,18 @@ class App {
     const rawState = localStorage.getItem('alphabetIncremental');
 
     this.state = {
+      prestigelvl: 0,
       prestigeCount: 0,
       score: 0,
+      prestigePoints: 0,
       bsize: 20,
       bsizelvl: 0,
-      autogen: 0.95,
+      autogen: 1,
       autogenlvl: 0,
+      doubleTime: 0,
       spawners: [
-        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5},
-        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5}
+        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0},
+        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0}
       ]
     };
 
@@ -175,6 +171,7 @@ class App {
   initGame() {
     //create spawners
     this.spawners = [];
+    this.objects = [];
     const genCount = this.state.prestigeCount + 2;
     //const genCount = 6;
     const width = this.canvas.width;
@@ -192,14 +189,26 @@ class App {
         y: genPosRadius * Math.sin(angle),
         z: 0,
         spawnRadius: 50,
-        inCount: 0,
+        spawnCount: 10,
         alive: true,
         collectorAngle: 0,
         collectorRadius: 40,
+        nextSpawn: 0
       };
+      
       this.objects.push(spawner);
       this.spawners.push(spawner);
     }
+  }
+
+  nextLevel() {
+    this.initGame();
+    this.state.prestigePoints = 0;
+    this.state.spawners = [];
+    const genCount = this.state.prestigeCount + 2;
+    for (let i = 0; i < genCount; i++) {
+      this.state.spawners.push({hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5});
+    } 
   }
   
   rndRange(min, max) {
@@ -207,12 +216,43 @@ class App {
   }
   
   tick() {
+    const curTime = new Date();
+    let deltaTime;
+    if (this.lastTime) {
+      deltaTime = (curTime - this.lastTime) / 1000;
+    } else {
+      deltaTime = 1/30;
+    }
+
+    if (deltaTime > 1) {
+      this.state.doubleTime += deltaTime - 1/30;
+    }
+
     this.t += 1/30;
     this.update();
+    if (this.state.doubleTime > 0) {
+      this.t += 1/30;
+      this.update();
+      this.state.doubleTime = Math.max(0, this.state.doubleTime - 1/30);
+    }
     this.draw();
+
+    this.lastTime = curTime;
   }
   
   update() {
+
+    if (this.state.prestigelvl > this.lastPrestige) {
+      this.lastPrestige = this.state.prestigelvl;
+      this.nextLevel();
+      return;
+    }
+
+    this.gameOver = this.state.prestigelvl === 25;
+    if (this.gameOver) {
+      return;
+    }
+
     const aliveObjects = [];
     this.objects.forEach( o => {
       switch (o.type) {
@@ -220,8 +260,7 @@ class App {
           const mdx = o.x - this.mouse.x;
           const mdy = o.y - this.mouse.y;
           const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-          const rndLvl = 0.95 ;
-          while (o.inCount > 10) {
+          while (this.state.spawners[o.id].inCount >= o.spawnCount) {
             const spawnAngle = Math.random() * 2 * Math.PI;
             const spawnRadius = Math.random() * o.spawnRadius + 25;
             const spawnX = spawnRadius * Math.cos(spawnAngle);
@@ -236,15 +275,15 @@ class App {
               value: 1,
               alive: true
             });
-            o.inCount -= 10;
-
+            this.state.spawners[o.id].inCount -= o.spawnCount;
           }
 
-          if (o.id === 0 && (mdist < 5 || Math.random() > rndLvl)) {
+          if (o.id === 0 && (mdist < 5 || this.t > o.nextSpawn)) {
             const spawnAngle = Math.random() * 2 * Math.PI;
             const spawnRadius = Math.random() * o.spawnRadius + 25;
             const spawnX = spawnRadius * Math.cos(spawnAngle);
             const spawnY = spawnRadius * Math.sin(spawnAngle);
+            o.nextSpawn = this.t + this.state.autogen;
             aliveObjects.push({
               type: 'coin',
               x: o.x + spawnX,
@@ -298,7 +337,11 @@ class App {
             const cdist = Math.sqrt(cdx * cdx + cdy * cdy);
             if (cdist < 5) {
               o.alive = false;
-              this.spawners[o.nextId].inCount++;
+              if (o.nextId !== 0) {
+                this.state.spawners[o.nextId].inCount += 1;
+              } else {
+                this.state.prestigePoints++;
+              }
               this.state.score += o.value;
             }
             
@@ -321,11 +364,16 @@ class App {
     
     const ctx = this.ctx;
     const img = document.getElementById('img1');
+
+    if (this.gameOver) {
+      return;
+    }
     
-    ctx.fillStyle = 'green';
+    ctx.fillStyle = 'grey';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+
 
     ctx.font = '20px Arial';
     ctx.textBaseline = 'middle';
@@ -333,9 +381,14 @@ class App {
     this.objects.forEach( o => {
       switch (o.type) {
         case 'spawner': {
-          ctx.fillStyle = 'blue';
+          ctx.fillStyle = 'red';
           ctx.beginPath();
           ctx.arc(o.x, o.y, 20, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.fillStyle = 'green';
+          ctx.beginPath();
+          const inCount = this.state.spawners[o.id].inCount;
+          ctx.arc(o.x, o.y, 20, 0, 2 * Math.PI * inCount / o.spawnCount);
           ctx.fill();
           ctx.fillStyle = 'white';
           ctx.fillText(o.label, o.x, o.y);
@@ -359,7 +412,7 @@ class App {
       }
     });
         
-    ctx.fillStyle = 'red';
+    ctx.fillStyle = 'blue';
     ctx.beginPath();
     ctx.arc(this.mouse.x, this.mouse.y, this.state.bsize, 0, 2 * Math.PI);
     ctx.fill();       
@@ -368,7 +421,12 @@ class App {
     ctx.textAlign = 'right';
     ctx.fillStyle = 'black';
     ctx.font = '50px monospace';
-    ctx.fillText(this.state.score, 400, -370);
+    ctx.fillText('$' + this.state.score, 390, -370);
+    ctx.fillText('P' + this.state.prestigePoints, 390, -330);
+    if (this.state.doubleTime > 0) {
+      ctx.fillStyle = 'green';
+      ctx.fillText(this.state.doubleTime.toFixed(1), 390, -290);
+    }
     
     this.ctx.restore();
   }
