@@ -3,15 +3,66 @@
   #id
 */
 
+:root {
+  --bg: hsl(203, 72%, 60%);
+  --bgl: hsl(203, 72%, 84%);
+  --bglh: hsl(203, 72%, 90%);
+}
+
 * {
   margin: 0;
   padding: 0;
 }
 
+body {
+  background: var(--bg);
+}
+
+body {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 table, td, th {
   border: 1px solid black;
+  border-radius: 3px;
+  background: var(--bgl);
+}
+
+button {
+  background: var(--bgl);
+}
+
+button:hover {
+  background: var(--bglh);
 }
 
 td, th {
   min-width: 5em;
 }
+
+.icon {
+  width: 16px;
+  display: none;
+}
+
+#upgrades {
+  margin: 0.5em;
+}
+
+table {
+  margin-bottom: 0.5em;
+}
+
+.upgradeIcon {
+  margin-right: 0.25em;
+  width: 32px;
+}
+
+canvas {
+  cursor: none;
+  border: 5px solid black;
+  border-radius: 10px;
+  margin: 0.5em;
+}
+

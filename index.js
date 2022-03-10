@@ -4,10 +4,13 @@
   decrease generator requirement for # of lower coins to gen new
   when there are too many coins, start increasing their value instead
     of making new
-  make player image a basket or something similar
-  get images for all 26 items
+    need to track coins for each spawner and have a max number
+    when the max is reached, sort them by value and add to the lowest one
   have an winning screen or message
-  get favicon
+  make coins worth more at higher levels
+  make local upgrades cost more at higher levels
+  every 5th spawner level is easier?
+  initial costs for global upgrades should be higher or increase faster
 */
 
 class App {
@@ -16,6 +19,14 @@ class App {
     this.ctx = this.canvas.getContext('2d');
     this.canvas.onmousemove = (e) => this.onmousemove(e);
     this.canvas.onclick = (e) => this.onclick(e);
+
+    this.icons = [];
+    for (let i = 0; i < 26; i++) {
+      this.icons[i] = document.getElementById(`icon${i}`);
+    }
+    this.itemNames = 'Apple,Banana,Cactus,Dog,Elephant,Fish,Glasses,Hat,Ice Cream,Jingle,Koala,Ladybug,Mushroom,Notebook,Octopus,Pencil,Quickness,Ring,Shoe,Tiger,Umbrella,Vehicle,Watermellon,Xray,Yam,Zap'.split`,`;
+
+    this.pickup = document.getElementById('pickup');
 
     this.objects = [];
     
@@ -38,19 +49,27 @@ class App {
     ];
 
     this.initUpgradesUI('globalUpgrades', this.globalUpgrades, this.state, 'Global Upgrades');
-    this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[0], 'A Upgrades (click spawner to switch)');
+    //this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[0], 'Apple Upgrades');
     
     this.t = 0;
     setInterval(() => this.tick(), 1000 / 30);
     setInterval(() => this.saveState(), 2000);
   }
 
-  initUpgradesUI(containerID, upgradesList, state, label) {
+  initUpgradesUI(containerID, upgradesList, state, label, img) {
     const container = document.getElementById(containerID);
     container.innerHTML = '';
 
     const elabel = document.createElement('h2');
-    elabel.innerText = label;
+    const labelImg = document.createElement('img');
+    if (img !== undefined) {
+      labelImg.src = img.src;
+      labelImg.classList.add('upgradeIcon');
+    }
+    const labelText = document.createElement('span');
+    labelText.innerText = label;
+    elabel.appendChild(labelImg);
+    elabel.appendChild(labelText);
     container.appendChild(elabel);
 
     const table = document.createElement('table');
@@ -207,7 +226,7 @@ class App {
     this.state.spawners = [];
     const genCount = this.state.prestigeCount + 2;
     for (let i = 0; i < genCount; i++) {
-      this.state.spawners.push({hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5});
+      this.state.spawners.push({hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0});
     } 
   }
   
@@ -369,7 +388,7 @@ class App {
       return;
     }
     
-    ctx.fillStyle = 'grey';
+    ctx.fillStyle = 'hsl(59, 32%, 60%)';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
@@ -381,15 +400,22 @@ class App {
     this.objects.forEach( o => {
       switch (o.type) {
         case 'spawner': {
-          ctx.fillStyle = 'red';
+          //background
+          ctx.fillStyle = 'hsl(5, 72%, 60%)';
           ctx.beginPath();
           ctx.arc(o.x, o.y, 20, 0, 2 * Math.PI);
           ctx.fill();
-          ctx.fillStyle = 'green';
+
+          //fill
+          ctx.fillStyle = 'hsl(116, 72%, 60%)';
           ctx.beginPath();
           const inCount = this.state.spawners[o.id].inCount;
+          ctx.moveTo(o.x, o.y);
           ctx.arc(o.x, o.y, 20, 0, 2 * Math.PI * inCount / o.spawnCount);
           ctx.fill();
+
+
+          //label
           ctx.fillStyle = 'white';
           ctx.fillText(o.label, o.x, o.y);
 
@@ -406,16 +432,13 @@ class App {
           break;
         }
         case 'coin': {
-          ctx.drawImage(img, o.x - 8, o.y - 8, 16, 16);
+          ctx.drawImage(this.icons[o.srcId], o.x - 8, o.y - 8, 16, 16);
           break;
         }
       }
     });
         
-    ctx.fillStyle = 'blue';
-    ctx.beginPath();
-    ctx.arc(this.mouse.x, this.mouse.y, this.state.bsize, 0, 2 * Math.PI);
-    ctx.fill();       
+    ctx.drawImage(this.pickup, this.mouse.x - this.state.bsize, this.mouse.y - this.state.bsize, this.state.bsize * 2, this.state.bsize * 2);
     
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'right';
@@ -443,7 +466,7 @@ class App {
       const dy = this.mouse.y - s.y;
       const d2 = dx * dx + dy * dy;
       if (d2 < 400) {
-        this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[s.id], `${s.label} Upgrades (click spawner to switch)`);
+        this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[s.id], `${this.itemNames[s.id]} Upgrades`, this.icons[s.id]);
       }
     });
   }
