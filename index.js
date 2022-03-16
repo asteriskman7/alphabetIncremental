@@ -2,15 +2,10 @@
 
 /*
   decrease generator requirement for # of lower coins to gen new
-  when there are too many coins, start increasing their value instead
-    of making new
-    need to track coins for each spawner and have a max number
-    when the max is reached, sort them by value and add to the lowest one
-  have an winning screen or message
-  make coins worth more at higher levels
-  make local upgrades cost more at higher levels
-  every 5th spawner level is easier?
   initial costs for global upgrades should be higher or increase faster
+  disable buy button when can't afford upgrade
+  when auto generation rate gets too low, increase value of coins instead of frequency of generation
+  display total time on winning screen
 */
 
 class App {
@@ -38,7 +33,7 @@ class App {
     this.mouse = {x: -Infinity, y: -Infinity};
 
     this.globalUpgrades = [
-      {display: "Basket size", levelVar: "bsizelvl", stateVar: "bsize", upgradeType: '*', upgradeVal: 1.5, maxVal: 100, costType: '*', costVal: 2, cost0: 10},
+      {display: "Basket size", levelVar: "bsizelvl", stateVar: "bsize", upgradeType: '*', upgradeVal: 1.1, maxVal: 100, costType: '*', costVal: 2, cost0: 10},
       {display: "Auto generation", levelVar: "autogenlvl", stateVar: "autogen", upgradeType: '*', upgradeVal: 0.75, maxVal: 0, costType: '*', costVal: 2, cost0: 10},
       {display: "Prestige", currency: "prestigePoints", levelVar: "prestigelvl", stateVar: "prestigeCount", upgradeType: '+', upgradeVal: 1, maxVal: 26, costType: '*', costVal: 1, cost0: 10}
     ];
@@ -49,9 +44,9 @@ class App {
     ];
 
     this.initUpgradesUI('globalUpgrades', this.globalUpgrades, this.state, 'Global Upgrades');
-    //this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[0], 'Apple Upgrades');
     
     this.t = 0;
+    this.useOfflineTime = true;
     setInterval(() => this.tick(), 1000 / 30);
     setInterval(() => this.saveState(), 2000);
   }
@@ -105,7 +100,7 @@ class App {
       buttonBuy.innerText = 'Buy';
       buttonBuy.onclick = () => {
         this.buyUpgrade(u, state);
-        this.initUpgradesUI(containerID, upgradesList, state, label);
+        this.initUpgradesUI(containerID, upgradesList, state, label, img);
       };
       tdb.appendChild(buttonBuy);
       tr.appendChild(tdb);
@@ -140,12 +135,13 @@ class App {
 
   getNextUpgradeCost(upgrade, state) {
     const lvl = state[upgrade.levelVar];
+    const mult = state.costMult ?? 1;
     switch (upgrade.costType) {
       case '*': {
-        return upgrade.cost0 * Math.pow(upgrade.costVal, state[upgrade.levelVar]);
+        return Math.floor(mult * (upgrade.cost0 * Math.pow(upgrade.costVal, state[upgrade.levelVar])));
       }
       case '+': {
-        return upgrade.cost0 + upgrade.costVal * (state[upgrade.levelVar]);
+        return Math.floor(mult * (upgrade.cost0 + upgrade.costVal * (state[upgrade.levelVar])));
       }
     }
   }
@@ -168,9 +164,12 @@ class App {
       autogen: 1,
       autogenlvl: 0,
       doubleTime: 0,
+      lastTime: (new Date()).getTime(),
+      startTime: (new Date()).getTime(),
+      endTime: undefined,
       spawners: [
-        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0},
-        {hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0}
+        {costMult: 1, hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0, coinCount: 0},
+        {costMult: 1.5, hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0, coinCount: 0}
       ]
     };
 
@@ -217,6 +216,9 @@ class App {
       
       this.objects.push(spawner);
       this.spawners.push(spawner);
+      for (let j = 0; j < this.state.spawners[i].coinCount; j++) {
+        this.spawnCoin(spawner, true);
+      }
     }
   }
 
@@ -226,7 +228,8 @@ class App {
     this.state.spawners = [];
     const genCount = this.state.prestigeCount + 2;
     for (let i = 0; i < genCount; i++) {
-      this.state.spawners.push({hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0});
+      const costMult = Math.pow(1.5, i);
+      this.state.spawners.push({costMult, hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0, coinCount: 0});
     } 
   }
   
@@ -237,11 +240,7 @@ class App {
   tick() {
     const curTime = new Date();
     let deltaTime;
-    if (this.lastTime) {
-      deltaTime = (curTime - this.lastTime) / 1000;
-    } else {
-      deltaTime = 1/30;
-    }
+    deltaTime = (curTime - this.state.lastTime) / 1000;
 
     if (deltaTime > 1) {
       this.state.doubleTime += deltaTime - 1/30;
@@ -249,14 +248,41 @@ class App {
 
     this.t += 1/30;
     this.update();
-    if (this.state.doubleTime > 0) {
-      this.t += 1/30;
-      this.update();
-      this.state.doubleTime = Math.max(0, this.state.doubleTime - 1/30);
+    if (this.state.doubleTime > 0 && this.useOfflineTime) {
+      while (true) {
+        this.t += 1/30;
+        this.update();
+        this.state.doubleTime = Math.max(0, this.state.doubleTime - 1/30);
+        deltaTime = ((new Date()) - curTime) / 1000;
+        if (deltaTime > 1/30 || this.state.doubleTime <= 0) {
+          break;
+        }
+      }
     }
     this.draw();
 
-    this.lastTime = curTime;
+    this.state.lastTime = curTime.getTime();
+  }
+
+  spawnCoin(spawner, init) {
+    const objectArray = init ? this.objects : this.aliveObjects;
+    const spawnAngle = Math.random() * 2 * Math.PI;
+    const spawnRadius = Math.random() * spawner.spawnRadius + 25;
+    const spawnX = spawnRadius * Math.cos(spawnAngle);
+    const spawnY = spawnRadius * Math.sin(spawnAngle);
+    objectArray.push({
+      type: 'coin',
+      x: spawner.x + spawnX,
+      y: spawner.y + spawnY,
+      z: 100,
+      srcId: spawner.id,
+      nextId: spawner.nextId,
+      value: 1,
+      alive: true
+    });
+    if (!init) {
+      this.state.spawners[spawner.id].coinCount++;
+    }
   }
   
   update() {
@@ -269,54 +295,33 @@ class App {
 
     this.gameOver = this.state.prestigelvl === 25;
     if (this.gameOver) {
+      if (this.state.endTime === undefined) {
+        this.state.endTime = (new Date()).getTime();
+      }
       return;
     }
 
-    const aliveObjects = [];
+    this.aliveObjects = [];
     this.objects.forEach( o => {
       switch (o.type) {
         case 'spawner': {
           const mdx = o.x - this.mouse.x;
           const mdy = o.y - this.mouse.y;
           const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-          while (this.state.spawners[o.id].inCount >= o.spawnCount) {
-            const spawnAngle = Math.random() * 2 * Math.PI;
-            const spawnRadius = Math.random() * o.spawnRadius + 25;
-            const spawnX = spawnRadius * Math.cos(spawnAngle);
-            const spawnY = spawnRadius * Math.sin(spawnAngle);
-            aliveObjects.push({
-              type: 'coin',
-              x: o.x + spawnX,
-              y: o.y + spawnY,
-              z: 100,
-              srcId: o.id,
-              nextId: o.nextId,
-              value: 1,
-              alive: true
-            });
-            this.state.spawners[o.id].inCount -= o.spawnCount;
+          const coinsToSpawn = Math.floor(this.state.spawners[o.id].inCount / o.spawnCount);
+          const inRemaining = this.state.spawners[o.id].inCount % o.spawnCount;
+          for (let i = 0; i < coinsToSpawn; i++) {
+            this.spawnCoin(o);
           }
+          this.state.spawners[o.id].inCount = inRemaining;
 
           if (o.id === 0 && (mdist < 5 || this.t > o.nextSpawn)) {
-            const spawnAngle = Math.random() * 2 * Math.PI;
-            const spawnRadius = Math.random() * o.spawnRadius + 25;
-            const spawnX = spawnRadius * Math.cos(spawnAngle);
-            const spawnY = spawnRadius * Math.sin(spawnAngle);
             o.nextSpawn = this.t + this.state.autogen;
-            aliveObjects.push({
-              type: 'coin',
-              x: o.x + spawnX,
-              y: o.y + spawnY,
-              z: 100,
-              srcId: o.id,
-              nextId: o.nextId,
-              value: 1,
-              alive: true
-            });
+            this.spawnCoin(o);
           }
 
           //hover speed of 1 should require 1 minute to revolve
-          o.collectorAngle += this.state.spawners[o.id].hoverspeed * 2 * Math.PI / (60 * 1000 / 30);
+          o.collectorAngle += this.state.spawners[o.id].hoverspeed * 4 * Math.PI / (60 * 1000 / 30);
           const minRadius = 20 + this.state.spawners[o.id].hoversize;
           const maxRadius = 75 - this.state.spawners[o.id].hoversize;
           o.collectorRadius = (maxRadius + minRadius) / 2 + (maxRadius - minRadius) * 0.5 * Math.sin(this.t);
@@ -357,11 +362,12 @@ class App {
             if (cdist < 5) {
               o.alive = false;
               if (o.nextId !== 0) {
-                this.state.spawners[o.nextId].inCount += 1;
+                this.state.spawners[o.nextId].inCount += o.value;
               } else {
                 this.state.prestigePoints++;
               }
-              this.state.score += o.value;
+              this.state.score += Math.floor(o.value * Math.pow(9, o.srcId));
+              this.state.spawners[o.srcId].coinCount -= o.value;
             }
             
             o.x = newx;
@@ -370,11 +376,11 @@ class App {
         }
       }
       if (o.alive) {
-        aliveObjects.push(o);
+        this.aliveObjects.push(o);
       }
     });   
   
-    this.objects = aliveObjects;
+    this.objects = this.aliveObjects;
     this.objects.sort( (a,b) => a.z - b.z );
   }
   
@@ -384,15 +390,11 @@ class App {
     const ctx = this.ctx;
     const img = document.getElementById('img1');
 
-    if (this.gameOver) {
-      return;
-    }
     
     ctx.fillStyle = 'hsl(59, 32%, 60%)';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
-
 
     ctx.font = '20px Arial';
     ctx.textBaseline = 'middle';
@@ -450,14 +452,26 @@ class App {
       ctx.fillStyle = 'green';
       ctx.fillText(this.state.doubleTime.toFixed(1), 390, -290);
     }
+
+    if (this.gameOver) {
+      for (let i = 0; i < 26; i++) {
+        const x = i % 7 + 0.5 * Math.cos(this.t + i * 999 * Math.cos(i * 999));
+        const j = Math.floor(i / 7) + 0.5 * Math.sin(this.t + i * 999 * Math.sin(i * 999));
+        ctx.drawImage(this.icons[i], -250 + x * 70, -300 + j * 70, 64, 64);
+      }
+      ctx.font = '50px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('You Win!', 0, 100);
+    }
     
     this.ctx.restore();
   }
   
   onmousemove(e) {
+    if (e.buttons === 1) {return;}
     const rect = this.canvas.getBoundingClientRect();
     this.mouse.x = e.clientX - rect.left - this.canvas.width / 2;
-    this.mouse.y = e.clientY - rect.top - this.canvas.height / 2;    
+    this.mouse.y = e.clientY - rect.top - this.canvas.height / 2; 
   }
 
   onclick(e) {
