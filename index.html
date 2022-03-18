@@ -8,14 +8,48 @@
     <link rel="stylesheet" href="index.css">
   </head>
   <body>
-    <canvas id='cmain' width='800' height='800'></canvas>
+    <div>
+      <div>
+        <canvas id='cmain' width='800' height='800'></canvas>
+      </div>
+      <div id='dstatus'>
+      </div>
+    </div>
     <div id='upgrades'>
       <div id='globalUpgrades'>
       </div>
       <div id='localUpgrades'>
       </div>
     </div>
-    <img style='display:none;' id='img1' src='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/120/apple/285/red-apple_1f34e.png'>
+    <div>
+      <button id='bhelp'>help</button> <button id='breset'>reset</button>
+    </div>
+    <div id='dreset'>
+      Are you sure you want to reset?
+      <div>
+        <button id='bresetyes'>Yes</button>
+        <button id='bresetno'>No</button>
+      </div>
+    </div>
+    <div id='dhelp'>
+      <h1>Alphabet Incremental Help</h1>
+      <ul>
+        <li>Hover over an item to collect it and send it to the next spawner.</li>
+        <li>Every 10 items a spawner receives will cause it to generate an item.</li>
+        <li>When an item goes back to spawner A, it generates 1 prestige currency (P1).</li>
+        <li>Advancing to the next level requires 10 prestige currency (P10).</li>
+        <li>Collecting items generates money that can be used for upgrades.</li>
+        <li>Higher level items generate more money but high level upgrades are more expensive.</li>
+        <li>When many items are present, existing item values are increased instead of generating more.</li> 
+        <li>Saves occur every 2 seconds and include the spawner progress and item total values.</li>
+        <li>Offline time generates speed up currency which is spent automatically when you return.</li>
+        <li>Placing the cursor so it overlaps spawner A will increase its spawn rate by 25%.</li>
+        <li>You can send friends the status text below the playfield to easily compare progress.</li>
+      </ul>
+    <button id='bhelpclose'>Close</button>
+    </div>
+
+    <img class='icon' id='logo' src='./favicon.png'>
 
     <!--image from seekpng.com-->
     <img class='icon' id='pickup' src='./pickup.png'>

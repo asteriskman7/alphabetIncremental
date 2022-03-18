@@ -1,11 +1,7 @@
 "use strict";
 
 /*
-  decrease generator requirement for # of lower coins to gen new
-  initial costs for global upgrades should be higher or increase faster
-  disable buy button when can't afford upgrade
-  when auto generation rate gets too low, increase value of coins instead of frequency of generation
-  display total time on winning screen
+  disable button when already at maxVal
 */
 
 class App {
@@ -14,7 +10,14 @@ class App {
     this.ctx = this.canvas.getContext('2d');
     this.canvas.onmousemove = (e) => this.onmousemove(e);
     this.canvas.onclick = (e) => this.onclick(e);
+    document.getElementById('breset').onclick = () => document.getElementById('dreset').style.display = 'block';
+    document.getElementById('bresetyes').onclick = () => this.reset();
+    document.getElementById('bresetno').onclick = () => document.getElementById('dreset').style.display = 'none';
+    this.dstatus = document.getElementById('dstatus');
+    document.getElementById('bhelp').onclick = () => document.getElementById('dhelp').style.display = 'block';
+    document.getElementById('bhelpclose').onclick = () => document.getElementById('dhelp').style.display = 'none';
 
+    this.logo = document.getElementById('logo');
     this.icons = [];
     for (let i = 0; i < 26; i++) {
       this.icons[i] = document.getElementById(`icon${i}`);
@@ -29,21 +32,23 @@ class App {
     this.lastPrestige = this.state.prestigelvl;
     this.initGame();
 
-    
     this.mouse = {x: -Infinity, y: -Infinity};
 
+    
+
     this.globalUpgrades = [
-      {display: "Basket size", levelVar: "bsizelvl", stateVar: "bsize", upgradeType: '*', upgradeVal: 1.1, maxVal: 100, costType: '*', costVal: 2, cost0: 10},
-      {display: "Auto generation", levelVar: "autogenlvl", stateVar: "autogen", upgradeType: '*', upgradeVal: 0.75, maxVal: 0, costType: '*', costVal: 2, cost0: 10},
+      //{display: "Basket size", levelVar: "bsizelvl", stateVar: "bsize", upgradeType: '*', upgradeVal: 1.1, maxVal: 100, costType: '*', costVal: 2, cost0: 10},
+      {display: "Auto generation", levelVar: "autogenlvl", stateVar: "autogen", upgradeType: '*', upgradeVal: 2, maxVal: 1e300, costType: '*', costVal: 2.1, cost0: 100},
       {display: "Prestige", currency: "prestigePoints", levelVar: "prestigelvl", stateVar: "prestigeCount", upgradeType: '+', upgradeVal: 1, maxVal: 26, costType: '*', costVal: 1, cost0: 10}
     ];
 
     this.localUpgrades = [
-      {display: "Hover speed", levelVar: "hoverspeedlvl", stateVar: "hoverspeed", upgradeType: '+', upgradeVal: 1, maxVal: 10, costType: '*', costVal: 2, cost0: 10},
-      {display: "Hover size", levelVar: "hoversizelvl", stateVar: "hoversize", upgradeType: '+', upgradeVal: 5, maxVal: 50, costType: '*', costVal: 2, cost0: 10}
+      {display: "Collector speed", levelVar: "hoverspeedlvl", stateVar: "hoverspeed", upgradeType: '+', upgradeVal: 1, maxVal: 10, costType: '*', costVal: 2, cost0: 100},
+      {display: "Collector size", levelVar: "hoversizelvl", stateVar: "hoversize", upgradeType: '+', upgradeVal: 5, maxVal: 5, costType: '*', costVal: 2, cost0: 100}
     ];
-
-    this.initUpgradesUI('globalUpgrades', this.globalUpgrades, this.state, 'Global Upgrades');
+    
+    this.localUpgradeButtons = [];
+    this.initUpgradesUI('globalUpgrades', this.globalUpgrades, this.state, 'Global Upgrades', 'globalUpgradeButtons', this.logo);
     
     this.t = 0;
     this.useOfflineTime = true;
@@ -51,9 +56,19 @@ class App {
     setInterval(() => this.saveState(), 2000);
   }
 
-  initUpgradesUI(containerID, upgradesList, state, label, img) {
+  formatNumber(f) {
+    if (f >= 1000) {
+      return f.toExponential(3);
+    } else {
+      return Math.floor(f).toFixed(0);
+    }
+  }
+
+  initUpgradesUI(containerID, upgradesList, state, label, barrayName, img) {
     const container = document.getElementById(containerID);
     container.innerHTML = '';
+
+    this[barrayName] = [];
 
     const elabel = document.createElement('h2');
     const labelImg = document.createElement('img');
@@ -84,23 +99,28 @@ class App {
       tr.appendChild(tdd);
 
       const tdc = document.createElement('td');
-      tdc.innerText = state[u.stateVar];
+      tdc.innerText = this.formatNumber(state[u.stateVar]);
       tr.appendChild(tdc);
 
       const tdn = document.createElement('td');
-      tdn.innerText = this.getNextUpgradeVal(u, state);
+      tdn.innerText = this.formatNumber(this.getNextUpgradeVal(u, state));
       tr.appendChild(tdn);
 
       const tdcost = document.createElement('td');
-      tdcost.innerText = (u.currency === 'prestigePoints' ? 'P' : '$') + this.getNextUpgradeCost(u, state);
+      const costValue = this.getNextUpgradeCost(u, state);
+      tdcost.innerText = (u.currency === 'prestigePoints' ? 'P' : '$') + this.formatNumber(costValue);
       tr.appendChild(tdcost);
 
       const tdb = document.createElement('td');
       const buttonBuy = document.createElement('button');
+      this[barrayName].push(buttonBuy);
+      buttonBuy.cost = costValue;
+      buttonBuy.currency = u.currency ?? 'score';
+
       buttonBuy.innerText = 'Buy';
       buttonBuy.onclick = () => {
         this.buyUpgrade(u, state);
-        this.initUpgradesUI(containerID, upgradesList, state, label, img);
+        this.initUpgradesUI(containerID, upgradesList, state, label, barrayName, img);
       };
       tdb.appendChild(buttonBuy);
       tr.appendChild(tdb);
@@ -169,7 +189,7 @@ class App {
       endTime: undefined,
       spawners: [
         {costMult: 1, hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0, coinCount: 0},
-        {costMult: 1.5, hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0, coinCount: 0}
+        {costMult: 5, hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0, coinCount: 0}
       ]
     };
 
@@ -186,11 +206,21 @@ class App {
     localStorage.setItem('alphabetIncremental', saveString);
   }
 
+  import(s) {
+    localStorage.setItem('alphabetIncremental', s);
+    window.location.reload();
+  }
+
+  export() {
+    console.log(localStorage.getItem('alphabetIncremental'));
+  }
+
   initGame() {
+    document.getElementById('localUpgrades').innerHTML = '';
     //create spawners
     this.spawners = [];
     this.objects = [];
-    const genCount = this.state.prestigeCount + 2;
+    const genCount = Math.min(26, this.state.prestigeCount + 2);
     //const genCount = 6;
     const width = this.canvas.width;
     const height = this.canvas.height;
@@ -211,26 +241,41 @@ class App {
         alive: true,
         collectorAngle: 0,
         collectorRadius: 40,
-        nextSpawn: 0
+        nextSpawn: 0,
+        coinList: []
       };
       
       this.objects.push(spawner);
       this.spawners.push(spawner);
-      for (let j = 0; j < this.state.spawners[i].coinCount; j++) {
-        this.spawnCoin(spawner, true);
+      const rawCoinCount = this.state.spawners[i].coinCount;
+      let coinCount;
+      let coinValue;
+      let singlesCount;
+      if (rawCoinCount > 200) {
+        coinCount = Math.floor(rawCoinCount / 200);
+        coinValue = Math.floor(rawCoinCount / coinCount);
+        singlesCount = rawCoinCount - (coinCount * coinValue);
+        for (let j = 0; j < coinCount; j++) {
+          this.spawnCoin(spawner, coinValue, true);
+        }
+      } else {
+        singlesCount = rawCoinCount;
+      }
+      for (let j = 0; j < singlesCount; j++) {
+        this.spawnCoin(spawner, 1, true);
       }
     }
   }
 
   nextLevel() {
-    this.initGame();
     this.state.prestigePoints = 0;
     this.state.spawners = [];
     const genCount = this.state.prestigeCount + 2;
     for (let i = 0; i < genCount; i++) {
-      const costMult = Math.pow(1.5, i);
+      const costMult = Math.pow(5, i);
       this.state.spawners.push({costMult, hoverspeedlvl: 0, hoverspeed: 1, hoversizelvl: 0, hoversize: 5, inCount: 0, coinCount: 0});
     } 
+    this.initGame();
   }
   
   rndRange(min, max) {
@@ -264,24 +309,65 @@ class App {
     this.state.lastTime = curTime.getTime();
   }
 
-  spawnCoin(spawner, init) {
-    const objectArray = init ? this.objects : this.aliveObjects;
-    const spawnAngle = Math.random() * 2 * Math.PI;
-    const spawnRadius = Math.random() * spawner.spawnRadius + 25;
-    const spawnX = spawnRadius * Math.cos(spawnAngle);
-    const spawnY = spawnRadius * Math.sin(spawnAngle);
-    objectArray.push({
-      type: 'coin',
-      x: spawner.x + spawnX,
-      y: spawner.y + spawnY,
-      z: 100,
-      srcId: spawner.id,
-      nextId: spawner.nextId,
-      value: 1,
-      alive: true
-    });
+  spawnCoins(spawner, value, init) {
+    if (value <= 0) {return;}
+    const rawCoinCount = value;
+    let coinCount;
+    let coinValue;
+    let singlesCount;
+    if (rawCoinCount > 100) {
+      coinValue = Math.floor(rawCoinCount / 100);
+      coinCount = 100;
+      singlesCount = rawCoinCount - (coinCount * coinValue);
+      for (let j = 0; j < coinCount; j++) {
+        this.spawnCoin(spawner, coinValue, init);
+      }
+    } else {
+      singlesCount = rawCoinCount;
+    }
+    //at some point, floating point rounder error can cause singlesCount to become large
+    // however, at that magnitude, a few more coins don't matter 
+    if (value < 10000) {
+      for (let j = 0; j < singlesCount; j++) {
+        this.spawnCoin(spawner, 1, init);
+      }
+    }
+  }
+
+  spawnCoin(spawner, value, init) {
     if (!init) {
-      this.state.spawners[spawner.id].coinCount++;
+      this.state.spawners[spawner.id].coinCount += value;
+    }
+
+    if (spawner.coinList.length < 50) {
+      const objectArray = init ? this.objects : this.aliveObjects;
+      const spawnAngle = Math.random() * 2 * Math.PI;
+      const spawnRadius = Math.random() * spawner.spawnRadius + 25;
+      const spawnX = spawnRadius * Math.cos(spawnAngle);
+      const spawnY = spawnRadius * Math.sin(spawnAngle);
+      const newCoin = {
+        type: 'coin',
+        x: spawner.x + spawnX,
+        y: spawner.y + spawnY,
+        z: 100,
+        srcId: spawner.id,
+        nextId: spawner.nextId,
+        value: value,
+        alive: true
+      };
+      objectArray.push(newCoin);
+      spawner.coinList.push(newCoin);
+    } else {
+      //pick a random alive coin and increase its value
+      while (true) {
+        const coinIndex = Math.floor(Math.random() * spawner.coinList.length);
+        if (spawner.coinList[coinIndex].alive === false) {
+          continue;
+        }
+
+        spawner.coinList[coinIndex].value += value;
+        break;
+      }
     }
   }
   
@@ -310,14 +396,29 @@ class App {
           const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
           const coinsToSpawn = Math.floor(this.state.spawners[o.id].inCount / o.spawnCount);
           const inRemaining = this.state.spawners[o.id].inCount % o.spawnCount;
-          for (let i = 0; i < coinsToSpawn; i++) {
-            this.spawnCoin(o);
-          }
+          
+          this.spawnCoins(o, coinsToSpawn);
           this.state.spawners[o.id].inCount = inRemaining;
 
-          if (o.id === 0 && (mdist < 5 || this.t > o.nextSpawn)) {
-            o.nextSpawn = this.t + this.state.autogen;
-            this.spawnCoin(o);
+          if (o.id === 0) {
+            const spawnPerSecond = this.state.autogen;
+            const secondsPerSpawn = 1 / spawnPerSecond;
+            let spawnPerPeriod = 0;
+            if (secondsPerSpawn > 1/30) {
+              if (this.t > o.nextSpawn) {
+                o.nextSpawn = o.nextSpawn + secondsPerSpawn;
+                this.spawnCoin(o, 1);
+              }
+              spawnPerPeriod = 1;
+            } else {
+              spawnPerPeriod = Math.floor(spawnPerSecond / 30);
+              //this.spawnCoin(o, spawnPerPeriod);
+              this.spawnCoins(o, spawnPerPeriod);
+            }
+            if (mdist < 5) {
+              //this.spawnCoin(o, spawnPerPeriod * 0.25);
+              this.spawnCoins(o, Math.max(Math.floor(spawnPerPeriod * 0.25), 1))
+            }
           }
 
           //hover speed of 1 should require 1 minute to revolve
@@ -328,6 +429,8 @@ class App {
           o.collectorX = o.x + o.collectorRadius * Math.cos(o.collectorAngle);
           o.collectorY = o.y + o.collectorRadius * Math.sin(o.collectorAngle);
           o.collectorSize = this.state.spawners[o.id].hoversize;
+
+          o.coinList = o.coinList.filter( c => c.alive );
 
           break;
         }
@@ -364,9 +467,9 @@ class App {
               if (o.nextId !== 0) {
                 this.state.spawners[o.nextId].inCount += o.value;
               } else {
-                this.state.prestigePoints++;
+                this.state.prestigePoints += o.value;
               }
-              this.state.score += Math.floor(o.value * Math.pow(9, o.srcId));
+              this.state.score += Math.floor(o.value * Math.pow(5, o.srcId));
               this.state.spawners[o.srcId].coinCount -= o.value;
             }
             
@@ -385,11 +488,19 @@ class App {
   }
   
   draw() {
+
+    this.globalUpgradeButtons.forEach( b => {
+      b.disabled = this.state[b.currency] < b.cost;
+    });
+
+    this.localUpgradeButtons.forEach( b => {
+      b.disabled = this.state[b.currency] < b.cost;
+    });
+
     this.ctx.save();
     
     const ctx = this.ctx;
     const img = document.getElementById('img1');
-
     
     ctx.fillStyle = 'hsl(59, 32%, 60%)';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -446,11 +557,11 @@ class App {
     ctx.textAlign = 'right';
     ctx.fillStyle = 'black';
     ctx.font = '50px monospace';
-    ctx.fillText('$' + this.state.score, 390, -370);
-    ctx.fillText('P' + this.state.prestigePoints, 390, -330);
+    ctx.fillText('$' + this.formatNumber(this.state.score), 390, -370);
+    ctx.fillText('P' + this.formatNumber(this.state.prestigePoints), 390, -330);
     if (this.state.doubleTime > 0) {
       ctx.fillStyle = 'green';
-      ctx.fillText(this.state.doubleTime.toFixed(1), 390, -290);
+      ctx.fillText(this.formatNumber(this.state.doubleTime), 390, -290);
     }
 
     if (this.gameOver) {
@@ -462,9 +573,32 @@ class App {
       ctx.font = '50px Arial';
       ctx.textAlign = 'center';
       ctx.fillText('You Win!', 0, 100);
+      ctx.font = '20px Arial';
+      const gameLength = this.state.endTime - this.state.startTime;
+      const gameTime = this.timeToObj(gameLength / 1000);
+      const gameTimeStr = this.timeObjToLongStr(gameTime);
+      ctx.fillText(gameTimeStr, 0, 175);
+      ctx.font = '50px Arial';
+      ctx.fillText('Now you know your ABCs!', 0, 360);
     }
     
     this.ctx.restore();
+
+    let statusString = this.spawners.map( s => {
+      const inCount = this.state.spawners[s.id].inCount;
+      const txt = s.label + ((inCount > 9) ? '*' : inCount);
+      return txt;
+    }).join`:`;
+
+    let playTime;
+    if (this.gameOver) {
+      playTime = this.state.endTime - this.state.startTime;
+    } else {
+      playTime = (new Date()) - this.state.startTime;
+    }
+ 
+    const playTimeStr = this.timeObjToLongStr(this.timeToObj(playTime / 1000));
+    this.dstatus.innerText = statusString + ' ' + playTimeStr;
   }
   
   onmousemove(e) {
@@ -475,14 +609,43 @@ class App {
   }
 
   onclick(e) {
+    let found = false;
     this.spawners.forEach( s => {
       const dx = this.mouse.x - s.x;
       const dy = this.mouse.y - s.y;
       const d2 = dx * dx + dy * dy;
       if (d2 < 400) {
-        this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[s.id], `${this.itemNames[s.id]} Upgrades`, this.icons[s.id]);
+        found = true;
+        this.initUpgradesUI('localUpgrades', this.localUpgrades, this.state.spawners[s.id], `${this.itemNames[s.id]} Upgrades`, 'localUpgradeButtons', this.icons[s.id]);
       }
     });
+    if (!found) {
+      document.getElementById('localUpgrades').innerHTML = '';
+    }
+  }
+
+  timeToObj(t) {
+    const result = {};
+
+    result.y = Math.floor(t / (365 * 24 * 60 * 60));
+    t = t % (365 * 24 * 60 * 60);
+    result.d = Math.floor(t / (24 * 60 * 60));
+    t = t % (24 * 60 * 60);
+    result.h = Math.floor(t / (60 * 60));
+    t = t % (60 * 60);
+    result.m = Math.floor(t / 60);
+    t = t % 60;
+    result.s = t;
+
+    return result;
+  }
+
+  leftPad(value, padChar, minLen) {
+    return padChar.repeat(Math.max(0, minLen - value.toString().length)) + value;
+  }
+
+  timeObjToLongStr(o) {
+    return `${o.y} years ${this.leftPad(o.d, '0', 3)} days ${this.leftPad(o.h, '0', 2)} hours ${this.leftPad(o.m, '0', 2)} minutes ${this.leftPad(Math.floor(o.s), '0', 2)} seconds`;
   }
 }
 
