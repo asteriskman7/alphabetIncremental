@@ -585,11 +585,12 @@ class App {
     
     this.ctx.restore();
 
+    const pval = this.state.prestigePoints > 9 ? '*' : this.state.prestigePoints; 
     let statusString = this.spawners.map( s => {
       const inCount = this.state.spawners[s.id].inCount;
       const txt = s.label + ((inCount > 9) ? '*' : inCount);
       return txt;
-    }).join`:`;
+    }).join`:` + "#" + pval;
 
     let playTime;
     if (this.gameOver) {
