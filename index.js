@@ -16,6 +16,8 @@ class App {
     this.dstatus = document.getElementById('dstatus');
     document.getElementById('bhelp').onclick = () => document.getElementById('dhelp').style.display = 'block';
     document.getElementById('bhelpclose').onclick = () => document.getElementById('dhelp').style.display = 'none';
+    this.icolor = document.getElementById('icolor');
+    this.iicons = document.getElementById('iicons');
 
     this.logo = document.getElementById('logo');
     this.icons = [];
@@ -27,6 +29,7 @@ class App {
     this.pickup = document.getElementById('pickup');
 
     this.objects = [];
+    this.maxCoinCount = 50;
     
     this.loadState();
     this.lastPrestige = this.state.prestigelvl;
@@ -247,23 +250,7 @@ class App {
       
       this.objects.push(spawner);
       this.spawners.push(spawner);
-      const rawCoinCount = this.state.spawners[i].coinCount;
-      let coinCount;
-      let coinValue;
-      let singlesCount;
-      if (rawCoinCount > 200) {
-        coinCount = Math.floor(rawCoinCount / 200);
-        coinValue = Math.floor(rawCoinCount / coinCount);
-        singlesCount = rawCoinCount - (coinCount * coinValue);
-        for (let j = 0; j < coinCount; j++) {
-          this.spawnCoin(spawner, coinValue, true);
-        }
-      } else {
-        singlesCount = rawCoinCount;
-      }
-      for (let j = 0; j < singlesCount; j++) {
-        this.spawnCoin(spawner, 1, true);
-      }
+      this.spawnCoins(spawner, this.state.spawners[i].coinCount, true);
     }
   }
 
@@ -315,9 +302,10 @@ class App {
     let coinCount;
     let coinValue;
     let singlesCount;
-    if (rawCoinCount > 100) {
-      coinValue = Math.floor(rawCoinCount / 100);
-      coinCount = 100;
+    const spawnLimit = this.maxCoinCount * 1;
+    if (rawCoinCount > spawnLimit) {
+      coinValue = Math.floor(rawCoinCount / spawnLimit);
+      coinCount = spawnLimit;
       singlesCount = rawCoinCount - (coinCount * coinValue);
       for (let j = 0; j < coinCount; j++) {
         this.spawnCoin(spawner, coinValue, init);
@@ -325,9 +313,9 @@ class App {
     } else {
       singlesCount = rawCoinCount;
     }
-    //at some point, floating point rounder error can cause singlesCount to become large
+    //at some point, floating point rounding error can cause singlesCount to become large
     // however, at that magnitude, a few more coins don't matter 
-    if (value < 10000) {
+    if (value < spawnLimit * 10) {
       for (let j = 0; j < singlesCount; j++) {
         this.spawnCoin(spawner, 1, init);
       }
@@ -339,7 +327,7 @@ class App {
       this.state.spawners[spawner.id].coinCount += value;
     }
 
-    if (spawner.coinList.length < 50) {
+    if (spawner.coinList.length < this.maxCoinCount) {
       const objectArray = init ? this.objects : this.aliveObjects;
       const spawnAngle = Math.random() * 2 * Math.PI;
       const spawnRadius = Math.random() * spawner.spawnRadius + 25;
@@ -545,7 +533,20 @@ class App {
           break;
         }
         case 'coin': {
-          ctx.drawImage(this.icons[o.srcId], o.x - 8, o.y - 8, 16, 16);
+          if (this.icolor.checked) {
+            const order = Math.log10(o.value);
+            const h = 300 * order / 26;
+            ctx.fillStyle = `hsl(${h}, 90%, 50%)`;
+            ctx.strokeStyle = `hsl(${h}, 90%, 30%)`;
+            //ctx.strokeStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          if (this.iicons.checked) {
+            ctx.drawImage(this.icons[o.srcId], o.x - 8, o.y - 8, 16, 16);
+          }
           break;
         }
       }
