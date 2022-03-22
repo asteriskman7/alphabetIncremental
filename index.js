@@ -14,6 +14,7 @@ class App {
     document.getElementById('bresetyes').onclick = () => this.reset();
     document.getElementById('bresetno').onclick = () => document.getElementById('dreset').style.display = 'none';
     this.dstatus = document.getElementById('dstatus');
+    this.dtime = document.getElementById('dtime');
     document.getElementById('bhelp').onclick = () => document.getElementById('dhelp').style.display = 'block';
     document.getElementById('bhelpclose').onclick = () => document.getElementById('dhelp').style.display = 'none';
     this.icolor = document.getElementById('icolor');
@@ -369,6 +370,7 @@ class App {
 
     this.gameOver = this.state.prestigelvl === 25;
     if (this.gameOver) {
+      this.state.doubleTime = 0;
       if (this.state.endTime === undefined) {
         this.state.endTime = (new Date()).getTime();
       }
@@ -578,7 +580,7 @@ class App {
       const gameLength = this.state.endTime - this.state.startTime;
       const gameTime = this.timeToObj(gameLength / 1000);
       const gameTimeStr = this.timeObjToLongStr(gameTime);
-      ctx.fillText(gameTimeStr, 0, 175);
+      ctx.fillText(gameTimeStr, 0, 145);
       ctx.font = '50px Arial';
       ctx.fillText('Now you know your ABCs!', 0, 360);
     }
@@ -600,7 +602,8 @@ class App {
     }
  
     const playTimeStr = this.timeObjToLongStr(this.timeToObj(playTime / 1000));
-    this.dstatus.innerText = statusString + ' ' + playTimeStr;
+    this.dstatus.innerText = statusString;
+    this.dtime.innerText = playTimeStr;
   }
   
   onmousemove(e) {

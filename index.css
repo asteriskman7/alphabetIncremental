@@ -80,6 +80,11 @@ canvas {
   font-family: monospace;
 }
 
+#dtime {
+  margin-left: 0.5em;
+  font-family: monospace;
+}
+
 #dhelp {
   display: none;
   position: absolute;
